@@ -156,6 +156,13 @@ Dict Dict::merge(const Dict &src)
     return *this;
 }
 
+void Dict::insert(const Dict &src)
+{
+    for (auto keyVal = src.constBegin(); keyVal != src.constEnd(); ++keyVal) {
+        QVariantMap::insert(keyVal.key(), keyVal.value());
+    }
+}
+
 bool Dict::containsDict(const Dict &other) const
 {
     if (count() < other.count()) {

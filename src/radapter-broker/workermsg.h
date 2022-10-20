@@ -1,12 +1,12 @@
 #ifndef WORKERMSG_H
 #define WORKERMSG_H
 
-#include <json-formatters/formatters/jsondict.h>
+#include "../json-formatters/formatters/jsondict.h"
 #include <QObject>
 #include <QDateTime>
+#include <QUuid>
 #include "radapterbrokerglobal.h"
 #include "workerbasestub.h"
-#include <QUuid>
 
 namespace Radapter {
 class RADAPTER_SHARED_SRC WorkerMsg;
