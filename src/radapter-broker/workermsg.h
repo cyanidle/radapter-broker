@@ -29,30 +29,15 @@ public:
         WorkerInternalCommand,
         WorkerReply
     };
-    enum SenderType {
-        TypeUserDefined = -1,
-        TypeUnspecified = 0,
-        TypeRedisCacheConsumer,
-        TypeRedisCacheProducer,
-        TypeRedisKeyEventsConsumer,
-        TypeRedisStreamProducer,
-        TypeRedisStreamConsumer,
-        TypeModbusConnector,
-        TypeWebsocketClient,
-        TypeWebsockerServerConnector,
-        TypeSqlArchiveProducer
-    };
     const QDateTime &getTimestamp() const;
     void setData(const Formatters::JsonDict &msgData) {m_dict = msgData.data();}
     void setReceivers(const QStringList &newReceivers);
     const quint64 &id() const {return m_id;}
 
     QString sender;
-    SenderType senderType;
     QVector<QString> receivers;
     BrokerFlags brokerFlags;
     WorkerFlags workerFlags;
-
 private:
     quint64 m_id;
     explicit WorkerMsg(const QString &sender,

@@ -1,13 +1,15 @@
 cmake_minimum_required(VERSION 3.1.0)
-project(radapter-broker)
+project(radapter_broker)
 find_package(Qt5 REQUIRED COMPONENTS Core Concurrent)
 add_compile_options(-std=c++11)
 
 include_directories(
-  src
+  ${radapter_broker_SOURCE_DIR}/src
   ${Qt5Core_INCLUDE_DIRS}
   ${Qt5Concurrent_INCLUDE_DIRS}
 )
+
+message("== INCLUDE DIRS: ${radapter_broker_SOURCE_DIR}/src ==")
 
 add_library(json-formatters
     src/json-formatters/formatters/dict.cpp

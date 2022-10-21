@@ -210,7 +210,6 @@ void WorkerBase::onMsgFromBroker(const Radapter::WorkerMsg &msg)
 WorkerProxy* WorkerBase::createProxy(QList<InterceptorBase*> interceptors, bool isThreadSafe)
 {
     QMutexLocker locker(&m_mutex);
-    m_baseMsg.senderType = workerType(); // Sets baseMsg senderType through virtual method;
     Qt::ConnectionType connectionType;
     if (isThreadSafe) {
         connectionType = Qt::QueuedConnection;

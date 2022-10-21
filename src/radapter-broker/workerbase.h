@@ -28,8 +28,6 @@ struct Radapter::WorkerSettings {
         producers(producers),
         maxMsgsInQueue(maxMsgsInQueue)
     {}
-    bool isValid() const {return !name.isEmpty();}
-
     QString name;
     QThread* thread;
     QStringList consumers;
@@ -59,7 +57,6 @@ public:
     int msgQueueSize() const {return m_asyncQueue.size();}
 
     virtual void run() = 0;
-    virtual WorkerMsg::SenderType workerType() const {return WorkerMsg::TypeUserDefined;}
 
     virtual ~WorkerBase() = default;
 signals:

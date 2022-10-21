@@ -8,7 +8,6 @@ const QString WorkerMsg::BrokenMsgReasonField = "__broken_msg_reason_field__";
 WorkerMsg::WorkerMsg() :
     Formatters::JsonDict(),
     sender(),
-    senderType(TypeUnspecified),
     receivers(),
     brokerFlags(BrokerFlags::BrokerBadMsg),
     workerFlags(),
