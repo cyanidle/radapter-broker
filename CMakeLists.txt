@@ -3,6 +3,11 @@ project(radapter_broker)
 find_package(Qt5 REQUIRED COMPONENTS Core Concurrent)
 add_compile_options(-std=c++11)
 
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -pthread")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pthread")
+set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -pthread")
+
 include_directories(
   ${radapter_broker_SOURCE_DIR}/src
   ${Qt5Core_INCLUDE_DIRS}
@@ -15,9 +20,10 @@ add_library(json-formatters
     src/json-formatters/formatters/dict.cpp
     src/json-formatters/formatters/jsondict.cpp
     src/json-formatters/formatters/list.cpp
-)
+    src/json-formatters/logging/jsonformatterslogging.cpp
+  )
 
-target_link_libraries(json-formatters
+target_link_libraries(json-formatters 
   Qt5::Core
 )
 
@@ -36,3 +42,4 @@ target_link_libraries(radapter-broker
   Qt5::Core
   json-formatters
 )
+
