@@ -6,7 +6,7 @@ add_compile_options(-std=c++11)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -pthread")
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pthread")
-set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -pthread")
+set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS}")
 
 include_directories(
   ${radapter_broker_SOURCE_DIR}/src
@@ -16,7 +16,7 @@ include_directories(
 
 message("== INCLUDE DIRS: ${radapter_broker_SOURCE_DIR}/src ==")
 
-add_library(json-formatters
+add_library(json-formatters STATIC
     src/json-formatters/formatters/dict.cpp
     src/json-formatters/formatters/jsondict.cpp
     src/json-formatters/formatters/list.cpp
@@ -27,7 +27,7 @@ target_link_libraries(json-formatters
   Qt5::Core
 )
 
-add_library(radapter-broker
+add_library(radapter-broker STATIC
     src/radapter-broker/broker.cpp
     src/radapter-broker/brokerlogging.cpp
     src/radapter-broker/factorybase.cpp
