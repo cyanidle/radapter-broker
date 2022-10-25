@@ -42,5 +42,3 @@ target_link_libraries(radapter-broker
   Qt5::Core
   json-formatters
 )
-
-set(${PROJECT_NAME}_INCLUDE_DIRS INCLUDE_DIRECTORIES)
