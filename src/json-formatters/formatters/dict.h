@@ -67,12 +67,12 @@ public:
     static Dict fromVariant(const QVariant &var);
     bool isNested() const;
     bool containsDict(const Dict &other) const;
+    inline void insert(const QString &key, const QVariant &val) {QVariantMap::insert(key, val);}
     /*! @} */ //Added
 signals:
 
 private:
     void insert(const Dict &src); 
-    inline void insert(const QString &key, const QVariant &val) {QVariantMap::insert(key, val);}
     Dict nest(const Dict &json, const QString &separator) const;
     Dict nestFlattened(const Dict &flattenedJson, const QString &separator) const;
 };
