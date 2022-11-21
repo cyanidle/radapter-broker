@@ -212,7 +212,8 @@ bool JsonDict::operator!=(const JsonDict& src) const
 
 JsonDict::iterator::iterator(QVariantMap::iterator iter, bool isEmpty)
     : m_iter(iter),
-      m_firstRun(true)
+      m_firstRun(true),
+      m_justReturned(false)
 {
     if (isEmpty) {
         m_currentEnd = iter;
@@ -272,11 +273,11 @@ JsonDict::iterator& JsonDict::iterator::operator++()
     {
         m_traverseHistory.push({m_iter, m_currentEnd});
         QVariantMap* currDict = reinterpret_cast<QVariantMap*>(currVal.data());
+        m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
         if (currDict->isEmpty()) {
             auto currAndEnd = m_traverseHistory.pop();
             m_iter = currAndEnd.first;
             m_currentEnd = currAndEnd.second;
-            m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
             ++m_iter;
             return ++*this;
         }
@@ -294,7 +295,8 @@ JsonDict::iterator& JsonDict::iterator::operator++()
 
 JsonDict::const_iterator::const_iterator(QVariantMap::const_iterator iter, bool isEmpty)
     : m_iter(iter),
-      m_firstRun(true)
+      m_firstRun(true),
+      m_justReturned(false)
 {
     if (isEmpty) {
         m_currentEnd = iter;
@@ -355,11 +357,11 @@ JsonDict::const_iterator& JsonDict::const_iterator::operator++()
     {
         m_traverseHistory.push({m_iter, m_currentEnd});
         const QVariantMap* currDict = reinterpret_cast<const QVariantMap*>(currVal.data());
+        m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
         if (currDict->isEmpty()) {
             auto currAndEnd = m_traverseHistory.pop();
             m_iter = currAndEnd.first;
             m_currentEnd = currAndEnd.second;
-            m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
             ++m_iter;
             return ++*this;
         }
