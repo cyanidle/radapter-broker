@@ -36,6 +36,11 @@ add_library(radapter-broker STATIC
     src/radapter-broker/workerbase.cpp
     src/radapter-broker/workermsg.cpp
     src/radapter-broker/workerproxy.cpp
+    src/radapter-broker/jsonschema.h
+    src/radapter-broker/debugging/logginginterceptor.cpp
+    src/radapter-broker/debugging/mockworker.cpp
+    src/radapter-broker/debugging/mockworkersettings.h
+    src/radapter-broker/debugging/logginginterceptorsettings.h
 )
 
 target_link_libraries(radapter-broker

@@ -1,5 +1,6 @@
 #include "broker.h"
 #include "brokerlogging.h"
+#include "workerbase.h"
 
 using namespace Radapter;
 
@@ -25,9 +26,10 @@ void Broker::onMsgFromWorker(const Radapter::WorkerMsg &msg)
         // Proxies should filter msg with this flag;
         emit broadcastToAll(msg);
     } else if (msg.brokerFlags == WorkerMsg::BrokerBadMsg) {
-        brokerWarn() << "Broker: Broken Msg; Sender: " << msg.sender << "; Reason: " << msg[WorkerMsg::BrokenMsgReasonField];
+        brokerWarn() << "Broker: Broken Msg; Sender: " << msg.sender()->objectName() << "; Reason: " << msg[WorkerMsg::BrokenMsgReasonField];
+        brokerWarn() << msg.printFullDebug();
     } else {
-        brokerWarn() << "Broker: Unknown msg broker flags; Sender: " << msg.sender;
+        brokerWarn() << "Broker: Unknown msg broker flags; Sender: " << msg.sender()->objectName();
     }
 }
 
@@ -48,7 +50,7 @@ void Broker::registerProxy(WorkerProxy* proxy)
     }
 }
 
-void Broker::connectProducersAndConsumers()
+void Broker::connectProducersAndConsumers(bool pedantic)
 {
     if (m_wasMassConnectCalled) {
         brokerError() << "Broker: connectProducersAndConsumers() was already called!";
@@ -57,16 +59,16 @@ void Broker::connectProducersAndConsumers()
     m_wasMassConnectCalled = true;
     for (auto proxyIter = m_proxies.constBegin(); proxyIter != m_proxies.constEnd(); ++proxyIter) {
         for (auto &consumer : proxyIter.value()->consumers()) {
-            connectTwoProxies(proxyIter.key(), consumer);
+            connectTwoProxies(proxyIter.key(), consumer, pedantic);
         }
         for (auto &producer : proxyIter.value()->producers()) {
-            connectTwoProxies(producer, proxyIter.key());
+            connectTwoProxies(producer, proxyIter.key(), pedantic);
         }
     }
 }
 
 void Broker::connectTwoProxies(const QString &producerName,
-                    const QString &consumerName)
+                    const QString &consumerName, bool pedantic)
 {
     QMutexLocker locker(&m_mutex);
     if (m_connected.contains({producerName, consumerName})) {
@@ -75,11 +77,17 @@ void Broker::connectTwoProxies(const QString &producerName,
     if (!m_proxies.contains(producerName)) {
         brokerWarn() << "Broker: connectProxies: No proxy (producer) with name: " << producerName;
         brokerWarn() << "^ Wanted by: " << consumerName;
+        if (pedantic) {
+            throw std::runtime_error("Broker: connectProxies(): missing producer!");
+        }
         return;
     }
     if (!m_proxies.contains(consumerName)) {
         brokerWarn() << "Broker: connectProxies: No proxy (consumer) with name: " << consumerName;
         brokerWarn() << "^ Wanted by: " << producerName;
+        if (pedantic) {
+            throw std::runtime_error("Broker: connectProxies(): missing consumer!");
+        }
         return;
     }
     if (m_proxies.value(producerName)->connectionType() != m_proxies.value(consumerName)->connectionType()) {
@@ -89,14 +97,17 @@ void Broker::connectTwoProxies(const QString &producerName,
         throw std::runtime_error("Broker: connectProxies: Proxies have different threadSafety!");
         return;
     }
-    brokerInfo() << "Broker: Connecting: Producer(" << producerName << ") --> Consumer(" << consumerName << ")";
     auto producer = m_proxies.value(producerName);
     auto consumer = m_proxies.value(consumerName);
+    brokerInfo() << "\nConnecting:\n == Producer(" << producer->parent() << ") -->\n == Consumer(" << consumer->parent() << ")";
     connect(producer, &WorkerProxy::msgToBroker,
             consumer, &WorkerProxy::onMsgFromBroker,
             producer->connectionType());
     m_connected.append({producerName, consumerName});
     if (!producer->consumers().contains(consumerName)) {
         producer->addConsumers({consumerName});
+    }
+    if (!consumer->producers().contains(producerName)) {
+        consumer->addProducers({producerName});
     }
 }

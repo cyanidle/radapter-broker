@@ -6,7 +6,6 @@ using namespace Radapter;
 
 QMutex SingletonBase::m_mutex;
 
-
 SingletonBase::SingletonBase(const WorkerSettings &settings) :
     WorkerBase(settings)
 {

@@ -6,7 +6,6 @@ using namespace Radapter;
 
 QMutex WorkerBase::m_mutex;
 QStringList WorkerBase::m_wereCreated = QStringList();
-quint64 WorkerBase::m_currentMsgId = 0u;
 QList<InterceptorBase*> WorkerBase::m_usedInterceptors = {};
 
 void WorkerBase::onCreation(const QString &name)
@@ -25,27 +24,32 @@ WorkerBase::WorkerBase(const WorkerSettings &settings) :
     m_asyncQueueCounts(),
     m_maxInAsync(settings.maxMsgsInQueue),
     m_thread(settings.thread),
-    m_name(settings.name),
     m_consumers(settings.consumers),
     m_producers(settings.producers),
-    m_baseMsg(settings.name),
+    m_baseMsg(this),
     m_proxy(nullptr),
-    m_isThreadSafe(true)
+    m_isThreadSafe(true),
+    m_isDebug(settings.isDebug)
 {
-    m_baseMsg.m_id = newMsgId();
+    setObjectName(settings.name);
+    if (m_isDebug) {
+        brokerWarn()<< "=== Worker (" << workerName() << "): Running in Debug Mode! ===";
+    }
     m_baseMsg.brokerFlags = WorkerMsg::BrokerNoAction;
-    m_baseMsg.workerFlags = WorkerMsg::WorkerNoAction;
+    m_baseMsg.workerFlags = WorkerMsg::WorkerNormal;
     if (m_thread) {
         m_isThreadSafe = false;
-        moveToThread(m_thread);
+    } else {
+        m_thread = QThread::currentThread();
     }
-    onCreation(m_name);
-    m_baseMsg.sender = m_name;
-
+    moveToThread(m_thread);
+    onCreation(workerName());
     for (auto &consumer : m_consumers) {
         m_baseMsg.receivers.append(consumer);
     }
-    connect(this, &WorkerBase::sendMsgExplicit, this, &WorkerBase::sendMsgToImpl);
+    connect(this, &WorkerBase::sendMsgWithDirection, this, &WorkerBase::sendMsgToImpl);
+    connect(this, &WorkerBase::sendMsg, this, &WorkerBase::onSendMsgPriv);
+    connect(this, &WorkerBase::sendMsg, this, &WorkerBase::onSendMsg);
 }
 
 
@@ -65,7 +69,7 @@ void WorkerBase::addProducers(const QStringList &producers)
 WorkerMsg WorkerBase::prepareMsgBroken(const QString &reason)
 {
     auto msg = m_baseMsg;
-    msg.m_id = newMsgId();
+    msg.updateMsgId();
     msg.brokerFlags = WorkerMsg::BrokerBadMsg;
     msg[WorkerMsg::BrokenMsgReasonField] = reason.isEmpty()?"Not given":reason;
     return msg;
@@ -75,7 +79,7 @@ WorkerMsg WorkerBase::dequeueMsg(quint64 id)
 {
     if (m_asyncQueue.size() == 0) {
         auto msg = m_baseMsg;
-        msg.m_id = newMsgId();
+        msg.updateMsgId();
         msg.brokerFlags = WorkerMsg::BrokerBadMsg;
         return prepareMsgBroken("Attempt to reply, while reply Queue is empty");
     }
@@ -103,22 +107,23 @@ quint64 WorkerBase::enqueueMsg(const WorkerMsg &msg)
 
 void WorkerBase::formatMsgDirection(WorkerMsg *msg, MsgDirection direction) const
 {
+    msg->brokerFlags = WorkerMsg::BrokerForwardMsg;
     switch (direction) {
-    case MsgDefault:
+    case DirectionDefault:
         return;
-    case MsgToConsumers:
+    case DirectionToConsumers:
         msg->receivers.clear();
         for (auto &consumer : m_consumers) {
             msg->receivers.append(consumer);
         }
         return;
-    case MsgToProducers:
+    case DirectionToProducers:
         msg->receivers.clear();
         for (auto &producer : m_producers) {
             msg->receivers.append(producer);
         }
         return;
-    case MsgToAll:
+    case DirectionToAll:
         msg->receivers.clear();
         for (auto &consumer : m_consumers) {
             msg->receivers.append(consumer);
@@ -137,10 +142,18 @@ void WorkerBase::sendMsgToImpl(const Radapter::WorkerMsg &msg, MsgDirection dire
     emit sendMsg(copy);
 }
 
-WorkerMsg WorkerBase::prepareCommand(const WorkerMsg &msg, MsgDirection direction) const
+
+WorkerMsg WorkerBase::prepareCommand(const JsonSchema *schema, const QVariant &source, MsgDirection direction) const
+{
+    auto msg = prepareCommandImpl(schema->prepareMsg(source), direction);
+    msg.m_schema = schema;
+    return msg;
+}
+
+WorkerMsg WorkerBase::prepareCommandImpl(const Formatters::JsonDict &msg, MsgDirection direction) const
 {
     auto wrapped = m_baseMsg;
-    wrapped.m_id = newMsgId();
+    wrapped.updateMsgId();
     wrapped.setData(msg.data());
     formatMsgDirection(&wrapped, direction);
     wrapped.workerFlags = WorkerMsg::WorkerInternalCommand;
@@ -151,63 +164,79 @@ WorkerMsg WorkerBase::prepareCommand(const WorkerMsg &msg, MsgDirection directio
 WorkerMsg WorkerBase::prepareMsg(const Formatters::JsonDict &msg, MsgDirection direction) const
 {
     auto wrapped = m_baseMsg;
-    wrapped.m_id = newMsgId();
+    wrapped.updateMsgId();
     formatMsgDirection(&wrapped, direction);
     if (msg.isEmpty()) {
+        wrapped.brokerFlags = WorkerMsg::BrokerBadMsg;
         return wrapped;
     } else {
         wrapped.setData(msg);
-        if (!m_consumers.isEmpty()) {
-        }
         return wrapped;
     }
 }
 
-WorkerMsg WorkerBase::prepareReply(const WorkerMsg &msg) const
+WorkerMsg WorkerBase::prepareReply(const WorkerMsg &msg, const QVariant &status) const
 {
     if (msg.brokerFlags == WorkerMsg::BrokerBadMsg) {
         return msg;
     }
     auto reply = msg;
     reply.receivers.clear();
-    reply.sender = m_name;
-    if (!msg.sender.isEmpty()) {
-        reply.receivers.append(msg.sender);
+    reply.m_sender = this;
+    if (msg.m_sender) {
+        reply.receivers.append(qobject_cast<const WorkerBase*>(msg.m_sender)->workerName());
     }
     reply.workerFlags = WorkerMsg::WorkerReply;
     reply.brokerFlags = WorkerMsg::BrokerForwardMsg;
+    reply[WorkerMsg::ReplyStatusField] = status;
     return reply;
 }
 
 void WorkerBase::onReply(const Radapter::WorkerMsg &msg)
 {
     brokerWarn() << metaObject()->className() << "(" <<
-        workerName() << "): received Reply from: " << msg.sender << ", but not handled!";
+        workerName() << "): received Reply from: " <<
+        msg.m_sender->metaObject()->className() <<
+        "(" << msg.m_sender->objectName() << "), but not handled!";
 }
 
 void WorkerBase::onCommand(const Radapter::WorkerMsg &msg)
 {
     brokerWarn() << metaObject()->className() << "(" <<
-        workerName() << "): received Command from: " << msg.sender << ", but not handled!";
+        workerName() << "): received Command from: " <<
+        msg.m_sender->metaObject()->className() <<
+        "(" << msg.m_sender->objectName() << "), but not handled!";
 }
 
 void WorkerBase::onMsg(const Radapter::WorkerMsg &msg)
 {
-    brokerWarn() << metaObject()->className() << "(" <<
-        workerName() << "): received Generic msg from: " << msg.sender << ", but not handled!";
+    brokerWarn().noquote() << metaObject()->className() << "(" <<
+        workerName() << "): received Generic msg from: " <<
+        msg.m_sender->metaObject()->className() <<
+        "(" << msg.m_sender->objectName() << "), but not handled!";
 }
 
 void WorkerBase::onMsgFromBroker(const Radapter::WorkerMsg &msg)
 {
+    if (m_isDebug) {
+        brokerInfo().noquote() << "\n ||| To Worker: " << workerName() <<  "||| " << msg.printFullDebug();
+    }
     switch (msg.workerFlags) {
-    case WorkerMsg::WorkerNoAction: onMsg(msg); break;
+    case WorkerMsg::WorkerNormal: onMsg(msg); break;
     case WorkerMsg::WorkerInternalCommand: onCommand(msg); break;
     case WorkerMsg::WorkerReply: onReply(msg); break;
-    default: brokerWarn() << "Unknow Worker Flag in Msg from: " << msg.sender; break;
+    default: brokerWarn() << "Unknown Worker Flag in Msg from: " << msg.sender(); break;
     }
 }
 
-WorkerProxy* WorkerBase::createProxy(QList<InterceptorBase*> interceptors, bool isThreadSafe)
+void WorkerBase::onSendMsgPriv(const Radapter::WorkerMsg &msg)
+{
+    if (m_isDebug) {
+        brokerInfo().noquote() << "\n ||| From Worker: " << workerName() <<  "||| " << msg.printFullDebug();
+    }
+}
+
+WorkerProxy* WorkerBase::createProxy(const QList<InterceptorBase*> &interceptors, bool isThreadSafe)
 {
     QMutexLocker locker(&m_mutex);
     Qt::ConnectionType connectionType;
@@ -221,7 +250,7 @@ WorkerProxy* WorkerBase::createProxy(QList<InterceptorBase*> interceptors, bool 
         connectionType = Qt::AutoConnection;
     }
     if (m_proxy == nullptr) {
-        m_proxy = new WorkerProxy(m_name, m_consumers, m_producers, connectionType);
+        m_proxy = new WorkerProxy(workerName(), connectionType);
         m_proxy->moveToThread(m_thread);
         m_proxy->setParent(this);
         auto filtered = QList<InterceptorBase*>();
@@ -242,7 +271,6 @@ WorkerProxy* WorkerBase::createProxy(QList<InterceptorBase*> interceptors, bool 
             }
         }
         if (filtered.isEmpty()) {
-            //! \todo Доделать коннекты
             // Подключение К брокеру (К прокси)
             connect(this, &WorkerBase::sendMsg,
                     m_proxy, &WorkerProxy::onMsgFromWorker,

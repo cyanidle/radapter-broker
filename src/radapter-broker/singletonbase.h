@@ -18,7 +18,6 @@ public:
     virtual int init() = 0;
 protected:
     explicit SingletonBase(const WorkerSettings &settings);
-private:
     static QMutex m_mutex;
 };
 

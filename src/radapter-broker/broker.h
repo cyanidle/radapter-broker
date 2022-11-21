@@ -22,9 +22,10 @@ public:
         return m_instance;
     }
     void registerProxy(WorkerProxy* proxy);
-    void connectProducersAndConsumers();
+    void connectProducersAndConsumers(bool pedantic = false);
     void connectTwoProxies(const QString &producerName,
-                        const QString &consumerName);
+                           const QString &consumerName,
+                           bool pedantic = false);
     ~Broker() override {
         m_instance = nullptr;
     }

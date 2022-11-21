@@ -1,28 +1,8 @@
 #include "jsondict.h"
 #include "../logging/jsonformatterslogging.h"
+#include <QJsonObject>
 
 using namespace Formatters;
-
-JsonDict::JsonDict(const Dict& src)
-    : m_dict(src)
-{
-}
-
-JsonDict::JsonDict(const std::initializer_list<std::pair<QString,QVariant>> &initializer)
-    : m_dict(initializer)
-{
-}
-
-
-JsonDict::JsonDict(const QVariant& src) :
-    m_dict(src)
-{
-}
-
-JsonDict::JsonDict(const QVariantMap& src) :
-    m_dict(src)
-{
-}
 
 const QVariant JsonDict::value(const QString& akey, const QVariant &adefault) const
 {
@@ -207,6 +187,15 @@ QVariant& JsonDict::operator[](const QStringList& akey)
         }
     }
     return *currentVal;
+}
+
+QJsonObject JsonDict::toJsonObj() const
+{
+    return QJsonObject::fromVariantMap(m_dict);
+}
+JsonDict JsonDict::fromJsonObj(const QJsonObject &json)
+{
+    return JsonDict(json.toVariantMap());
 }
 
 bool JsonDict::operator==(const JsonDict& src) const

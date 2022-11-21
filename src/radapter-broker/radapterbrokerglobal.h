@@ -3,6 +3,10 @@
 
 #include <stdexcept>
 #include <QString>
+#include <QObject>
+#include <QVariantMap>
+#include <QFile>
+#include <QJsonDocument>
 
 #ifndef RADAPTER_SHARED_SRC
 #define RADAPTER_SHARED_SRC
