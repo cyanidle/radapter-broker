@@ -1,8 +1,28 @@
 #include "jsondict.h"
 #include "../logging/jsonformatterslogging.h"
-#include <QJsonObject>
 
 using namespace Formatters;
+
+JsonDict::JsonDict(const Dict& src)
+    : m_dict(src)
+{
+}
+
+JsonDict::JsonDict(const std::initializer_list<std::pair<QString,QVariant>> &initializer)
+    : m_dict(initializer)
+{
+}
+
+
+JsonDict::JsonDict(const QVariant& src) :
+    m_dict(src)
+{
+}
+
+JsonDict::JsonDict(const QVariantMap& src) :
+    m_dict(src)
+{
+}
 
 const QVariant JsonDict::value(const QString& akey, const QVariant &adefault) const
 {
@@ -189,15 +209,6 @@ QVariant& JsonDict::operator[](const QStringList& akey)
     return *currentVal;
 }
 
-QJsonObject JsonDict::toJsonObj() const
-{
-    return QJsonObject::fromVariantMap(m_dict);
-}
-JsonDict JsonDict::fromJsonObj(const QJsonObject &json)
-{
-    return JsonDict(json.toVariantMap());
-}
-
 bool JsonDict::operator==(const JsonDict& src) const
 {
     return m_dict == src.m_dict;
@@ -212,8 +223,7 @@ bool JsonDict::operator!=(const JsonDict& src) const
 
 JsonDict::iterator::iterator(QVariantMap::iterator iter, bool isEmpty)
     : m_iter(iter),
-      m_firstRun(true),
-      m_justReturned(false)
+      m_firstRun(true)
 {
     if (isEmpty) {
         m_currentEnd = iter;
@@ -273,11 +283,11 @@ JsonDict::iterator& JsonDict::iterator::operator++()
     {
         m_traverseHistory.push({m_iter, m_currentEnd});
         QVariantMap* currDict = reinterpret_cast<QVariantMap*>(currVal.data());
-        m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
         if (currDict->isEmpty()) {
             auto currAndEnd = m_traverseHistory.pop();
             m_iter = currAndEnd.first;
             m_currentEnd = currAndEnd.second;
+            m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
             ++m_iter;
             return ++*this;
         }
@@ -295,8 +305,7 @@ JsonDict::iterator& JsonDict::iterator::operator++()
 
 JsonDict::const_iterator::const_iterator(QVariantMap::const_iterator iter, bool isEmpty)
     : m_iter(iter),
-      m_firstRun(true),
-      m_justReturned(false)
+      m_firstRun(true)
 {
     if (isEmpty) {
         m_currentEnd = iter;
@@ -357,11 +366,11 @@ JsonDict::const_iterator& JsonDict::const_iterator::operator++()
     {
         m_traverseHistory.push({m_iter, m_currentEnd});
         const QVariantMap* currDict = reinterpret_cast<const QVariantMap*>(currVal.data());
-        m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
         if (currDict->isEmpty()) {
             auto currAndEnd = m_traverseHistory.pop();
             m_iter = currAndEnd.first;
             m_currentEnd = currAndEnd.second;
+            m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
             ++m_iter;
             return ++*this;
         }

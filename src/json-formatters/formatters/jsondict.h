@@ -7,7 +7,6 @@
 
 #include <QObject>
 #include <QDateTime>
-#include <QJsonDocument>
 #include <QStack>
 #include "dict.h"
 #include "list.h"
@@ -22,7 +21,8 @@ namespace Formatters{
  * \ingroup Dict
  * \brief Основной тип сообщения.
  *
- *  Является основным типом данных, с помощью которого происходит обмен информацией между Worker`ами.
+ *  Является основным типом данных, с помощью которого происходит обмен информацией между протоколами
+ *  через Коннекторы.
  *  Подразумевает глубоко вложенную структуру. Все запросы формируются рекурсивно, в соответствии с вложенностью JsonDict.
  *  (см. Radapter::Redis::Entry)
  * 
@@ -44,50 +44,6 @@ class Formatters::JsonDict
 {
     friend Formatters::Dict;
 public:
-
-    explicit JsonDict(const QVariant& src) : m_dict(src) {}
-    JsonDict(const Dict& src = Dict{}) : m_dict(src) {}
-    JsonDict(const QVariantMap& src) : m_dict(src) {}
-    JsonDict(const std::initializer_list<std::pair<QString, QVariant>> &initializer) : m_dict(initializer) {}
-    JsonDict(std::initializer_list<std::pair<QString, QVariant>> &&initializer) : m_dict(std::move(initializer)) {}
-    JsonDict(Dict&& src) : m_dict(std::move(src)) {}
-    JsonDict(QVariantMap&& src) : m_dict(std::move(src)) {}
-    //! Функция доступа к вложенным элементам.
-    /// \warning Попытка доступа к несуществующему ключу создает пустое значение в нем,
-    /// не повлияет на данные, но стоит быть внимательным (возвращает пустой QVariant())
-    ///
-    /// \warning Если ключ неполный, внутри QVariant будет словарь (субдомен)
-    ///
-    /// \warning Если ключ пытается получить значение "ниже" уже существующего **значения**, то онок
-    /// не продолжит создавать вложенные словари, а выведет предупреждение в консоль и вернет само
-    /// перекрываемое значение
-    QVariant& operator[](const QStringList& akey);
-    QVariant& operator[](const QString& akey);
-    const QVariant operator[](const QStringList& akey) const;
-    const QVariant operator[](const QString& akey) const;
-    //! Не создает веток по несуществующим ключам
-    const QVariant value(const QStringList& akey, const QVariant &adefault = QVariant()) const;
-    const QVariant value(const QString& akey, const QVariant &adefault = QVariant()) const;
-    //! Оператор глубокого сравнения словарей
-    bool operator==(const JsonDict& src) const;
-    bool operator!=(const JsonDict& src) const;
-    //! Конвертация в QJsonDocument
-    QJsonObject toJsonObj() const;
-    //! Заполнение из QJsonDocument
-    static JsonDict fromJsonObj(const QJsonObject &json);
-    inline bool contains(const QString &key) const {return m_dict.contains(key);}
-    bool contains(const QStringList &key) const;
-    Dict &data();
-    const QString &firstKey() const {return m_dict.firstKey();}
-    QVariant &first() {return m_dict.first();}
-    const Dict& data() const;
-    const Dict& constData() const;
-    Dict flatten(const QString &separator) const;
-    QStringList keys(const QString &separator) const;
-    int remove(const QStringList &akey);
-    QVariant take(const QStringList &akey);
-    void merge(const JsonDict &src);
-    bool isEmpty() const;
     /*!
      * \defgroup JsonDictIterator Iterator
      * \ingroup JsonDict
@@ -150,6 +106,42 @@ public:
         bool m_justReturned;
     };
     /*! @} */ //iterator doxy
+    JsonDict(const Dict& src = Dict{});
+    JsonDict(const QVariant& src);
+    JsonDict(const QVariantMap& src);
+    explicit JsonDict(const std::initializer_list<std::pair<QString, QVariant>> &initializer);
+    //! Функция доступа к вложенным элементам.
+    /// \warning Попытка доступа к несуществующему ключу создает пустое значение в нем,
+    /// не повлияет на данные, но стоит быть внимательным (возвращает пустой QVariant())
+    ///
+    /// \warning Если ключ неполный, внутри QVariant будет словарь (субдомен)
+    ///
+    /// \warning Если ключ пытается получить значение "ниже" уже существующего **значения**, то онок
+    /// не продолжит создавать вложенные словари, а выведет предупреждение в консоль и вернет само
+    /// перекрываемое значение
+    QVariant& operator[](const QStringList& akey);
+    QVariant& operator[](const QString& akey);
+    //! Не создает веток по несуществующим ключам
+    const QVariant value(const QStringList& akey, const QVariant &adefault = QVariant()) const;
+    const QVariant operator[](const QStringList& akey) const;
+    const QVariant value(const QString& akey, const QVariant &adefault = QVariant()) const;
+    const QVariant operator[](const QString& akey) const;
+    //! Оператор глубокого сравнения словарей
+    /// \warning Довольно медленный, так как происходит полная итерация по двум словарям дважды (~0.016-0.020 мс)
+    bool operator==(const JsonDict& src) const;
+    bool operator!=(const JsonDict& src) const;
+    bool contains(const QStringList &key) const;
+    Dict &data();
+    const QString &firstKey() const {return m_dict.firstKey();}
+    QVariant &first() {return m_dict.first();}
+    const Dict& data() const;
+    const Dict& constData() const;
+    Dict flatten(const QString &separator) const;
+    QStringList keys(const QString &separator) const;
+    int remove(const QStringList &akey);
+    QVariant take(const QStringList &akey);
+    void merge(const JsonDict &src);
+    bool isEmpty() const;
     JsonDict::iterator begin();
     JsonDict::iterator end();
     JsonDict::const_iterator begin() const;
