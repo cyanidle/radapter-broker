@@ -24,10 +24,16 @@ namespace Formatters{
 class Formatters::Dict : public QVariantMap
 {
 public:
-    explicit Dict();
-    Dict(const QVariantMap &jsonDict);
     explicit Dict(const QVariant &jsonData);
-    explicit Dict(const std::initializer_list<std::pair<QString, QVariant>> &initializer);
+    Dict() : QVariantMap() {}
+    Dict(const Dict &src) : QVariantMap(src) {}
+    Dict(const std::initializer_list<std::pair<QString, QVariant>> &initializer) : QVariantMap(initializer) {}
+    Dict(std::initializer_list<std::pair<QString, QVariant>> &&initializer) : QVariantMap(std::move(initializer)) {}
+    Dict(const QVariantMap &jsonDict) : QVariantMap(jsonDict) {}
+    Dict(QVariantMap &&src) : QVariantMap(std::move(src)) {}
+    Dict(Dict &&src) : QVariantMap(std::move(src)) {}
+    Dict &operator=(const Dict &src) {QVariantMap::operator=(src); return *this;}
+    Dict &operator=(Dict &&src) {swap(src); return *this;}
     /*!
      *  \defgroup DictAdded Добавленные методы
      *  \ingroup Dict

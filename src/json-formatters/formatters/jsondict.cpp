@@ -1,28 +1,8 @@
 #include "jsondict.h"
 #include "../logging/jsonformatterslogging.h"
+#include <QJsonObject>
 
 using namespace Formatters;
-
-JsonDict::JsonDict(const Dict& src)
-    : m_dict(src)
-{
-}
-
-JsonDict::JsonDict(const std::initializer_list<std::pair<QString,QVariant>> &initializer)
-    : m_dict(initializer)
-{
-}
-
-
-JsonDict::JsonDict(const QVariant& src) :
-    m_dict(src)
-{
-}
-
-JsonDict::JsonDict(const QVariantMap& src) :
-    m_dict(src)
-{
-}
 
 const QVariant JsonDict::value(const QString& akey, const QVariant &adefault) const
 {
@@ -58,12 +38,45 @@ bool JsonDict::contains(const QStringList &key) const
     if (key.length() == 0) {
         return false;
     }
-
     if (key.length() == 1 && m_dict.value(key[0]).isValid()) {
         return true;
     }
-
     return value(key).isValid();
+}
+
+const QVariant *JsonDict::recurseTo(const QStringList &fullKey, int ignoreLastKeys) const
+{
+    QVariantMap* currentDict = const_cast<Dict*>(&m_dict);
+    QVariant* current = nullptr;
+    int count = fullKey.size();
+    for (auto &key : fullKey) {
+        if (currentDict->contains(key)) {
+            current = &(currentDict->operator[](key));
+            if (count > 1) {
+                if (current->canConvert<QVariantMap>() || current->canConvert<Dict>()) {
+                    currentDict = reinterpret_cast<QVariantMap *>(current->data());
+                } else {
+                    return nullptr;
+                }
+            }
+        } else {
+            return nullptr;
+        }
+        if (--count <= ignoreLastKeys) {
+            break;
+        }
+    }
+    return current;
+}
+
+bool JsonDict::isValid(const QStringList& akey) const
+{
+    return value(akey).isValid();
+}
+
+bool JsonDict::isValid(const QString& akey) const
+{
+    return m_dict.value(akey).isValid();
 }
 
 JsonDict::iterator JsonDict::begin()
@@ -108,19 +121,9 @@ const QVariant JsonDict::operator[](const QStringList& akey) const
 
 const QVariant JsonDict::value(const QStringList& akey, const QVariant &adefault) const
 {
-    QVariantMap currentDict = m_dict;
-    QVariant currentVal = adefault;
-    for (int i = 0; i < akey.length() - 1; ++i) {
-        currentVal = currentDict.value(akey[i], adefault);
-        if (currentVal.canConvert<QVariantMap>()) {
-            currentDict = currentVal.value<QVariantMap>();
-        } else {
-            return adefault;
-        }
-    }
-    currentVal = currentDict.value(akey[akey.length() - 1]);
-    if (currentVal.isValid()) {
-        return currentVal;
+    auto ptr = recurseTo(akey);
+    if (ptr) {
+        return *ptr;
     } else {
         return adefault;
     }
@@ -178,16 +181,12 @@ const Dict& JsonDict::constData() const
 {
     return m_dict;
 }
-
 //! Дает доступ на чтение/запись значения под ключем, разделитель - ":"
 QVariant& JsonDict::operator[](const QStringList& akey)
 {
     bool disableWarn = false;
     QVariantMap* currentDict = &m_dict;
     QVariant* currentVal = &(currentDict->operator[](akey.constFirst()));
-    if (!m_dict.contains(akey.first())) {
-        disableWarn = true; // Ситуация с несуществующим первым ключом не требует вывода ошибки
-    }
     for (int index = 1; index < (akey.size()); ++index) {
         if (currentVal->isValid()) {
             if (currentVal->canConvert<QVariantMap>()) {
@@ -209,6 +208,15 @@ QVariant& JsonDict::operator[](const QStringList& akey)
     return *currentVal;
 }
 
+QJsonObject JsonDict::toJsonObj() const
+{
+    return QJsonObject::fromVariantMap(m_dict);
+}
+JsonDict JsonDict::fromJsonObj(const QJsonObject &json)
+{
+    return JsonDict(json.toVariantMap());
+}
+
 bool JsonDict::operator==(const JsonDict& src) const
 {
     return m_dict == src.m_dict;
@@ -223,7 +231,8 @@ bool JsonDict::operator!=(const JsonDict& src) const
 
 JsonDict::iterator::iterator(QVariantMap::iterator iter, bool isEmpty)
     : m_iter(iter),
-      m_firstRun(true)
+      m_firstRun(true),
+      m_justReturned(false)
 {
     if (isEmpty) {
         m_currentEnd = iter;
@@ -283,11 +292,11 @@ JsonDict::iterator& JsonDict::iterator::operator++()
     {
         m_traverseHistory.push({m_iter, m_currentEnd});
         QVariantMap* currDict = reinterpret_cast<QVariantMap*>(currVal.data());
+        m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
         if (currDict->isEmpty()) {
             auto currAndEnd = m_traverseHistory.pop();
             m_iter = currAndEnd.first;
             m_currentEnd = currAndEnd.second;
-            m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
             ++m_iter;
             return ++*this;
         }
@@ -305,7 +314,8 @@ JsonDict::iterator& JsonDict::iterator::operator++()
 
 JsonDict::const_iterator::const_iterator(QVariantMap::const_iterator iter, bool isEmpty)
     : m_iter(iter),
-      m_firstRun(true)
+      m_firstRun(true),
+      m_justReturned(false)
 {
     if (isEmpty) {
         m_currentEnd = iter;
@@ -366,11 +376,11 @@ JsonDict::const_iterator& JsonDict::const_iterator::operator++()
     {
         m_traverseHistory.push({m_iter, m_currentEnd});
         const QVariantMap* currDict = reinterpret_cast<const QVariantMap*>(currVal.data());
+        m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
         if (currDict->isEmpty()) {
             auto currAndEnd = m_traverseHistory.pop();
             m_iter = currAndEnd.first;
             m_currentEnd = currAndEnd.second;
-            m_justReturned = true; // При возврате на уровень выше, для обеспечения многоуровневнего выхода нужно запрещать автоматическую итерацию
             ++m_iter;
             return ++*this;
         }
